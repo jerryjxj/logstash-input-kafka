@@ -2,6 +2,8 @@ require 'logstash/namespace'
 require 'logstash/inputs/base'
 require 'stud/interval'
 require 'java'
+require "logstash/codecs/identity_map_codec"
+require "logstash/codecs/multiline"
 require 'logstash-input-kafka_jars.rb'
 
 # This input will read events from a Kafka topic. It uses the 0.10 version of
@@ -48,6 +50,8 @@ require 'logstash-input-kafka_jars.rb'
 # Kafka consumer configuration: http://kafka.apache.org/documentation.html#consumerconfigs
 #
 class LogStash::Inputs::Kafka < LogStash::Inputs::Base
+  require "logstash/inputs/kafka/codec_callback_listener"
+
   config_name 'kafka'
 
   default :codec, 'plain'
@@ -238,7 +242,12 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
 
   private
   def thread_runner(logstash_queue, consumer)
-    Thread.new do
+      if @codec.kind_of? LogStash::Codecs::Multiline
+        codec_inst = LogStash::Codecs::IdentityMapCodec.new(@codec.clone)
+      else 
+        codec_inst = @codec.clone
+      end    
+      Thread.new do
       begin
         unless @topics_pattern.nil?
           nooplistener = org.apache.kafka.clients.consumer.internals.NoOpConsumerRebalanceListener.new
@@ -247,22 +256,11 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
         else
           consumer.subscribe(topics);
         end
-        codec_instance = @codec.clone
+
         while !stop?
           records = consumer.poll(poll_timeout_ms)
           for record in records do
-            codec_instance.decode(record.value.to_s) do |event|
-              decorate(event)
-              if @decorate_events
-                event.set("[@metadata][kafka][topic]", record.topic)
-                event.set("[@metadata][kafka][consumer_group]", @group_id)
-                event.set("[@metadata][kafka][partition]", record.partition)
-                event.set("[@metadata][kafka][offset]", record.offset)
-                event.set("[@metadata][kafka][key]", record.key)
-                event.set("[@metadata][kafka][timestamp]", record.timestamp)
-              end
-              logstash_queue << event
-            end
+            codec_inst.accept(CodecCallbackListener.new(record, self, logstash_queue, @decorate_events, @group_id))
           end
           # Manual offset commit
           if @enable_auto_commit == "false"
@@ -273,6 +271,9 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
         raise e if !stop?
       ensure
         consumer.close
+        if codec_inst.kind_of? LogStash::Codecs::IdentityMapCodec
+          codec_inst.auto_flush_mapped
+        end
       end
     end
   end
