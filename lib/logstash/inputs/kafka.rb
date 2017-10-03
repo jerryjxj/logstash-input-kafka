@@ -263,7 +263,7 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
             if codec_inst.kind_of? LogStash::Codecs::IdentityMapCodec
               codec_inst.accept(CodecCallbackListener.new(record, self, logstash_queue, @decorate_events, @group_id))
             else 
-              codec_instance.decode(record.value.to_s) do |event|
+              codec_inst.decode(record.value.to_s) do |event|
                 decorate(event)
                 if @decorate_events
                   event.set("[@metadata][kafka][topic]", record.topic)
