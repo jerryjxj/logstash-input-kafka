@@ -260,7 +260,21 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
         while !stop?
           records = consumer.poll(poll_timeout_ms)
           for record in records do
-            codec_inst.accept(CodecCallbackListener.new(record, self, logstash_queue, @decorate_events, @group_id))
+            if codec_inst.kind_of? LogStash::Codecs::IdentityMapCodec
+              codec_inst.accept(CodecCallbackListener.new(record, self, logstash_queue, @decorate_events, @group_id))
+            else 
+              codec_instance.decode(record.value.to_s) do |event|
+              decorate(event)
+              if @decorate_events
+                event.set("[@metadata][kafka][topic]", record.topic)
+                event.set("[@metadata][kafka][consumer_group]", @group_id)
+                event.set("[@metadata][kafka][partition]", record.partition)
+                event.set("[@metadata][kafka][offset]", record.offset)
+                event.set("[@metadata][kafka][key]", record.key)
+                event.set("[@metadata][kafka][timestamp]", record.timestamp)
+              end
+              logstash_queue << event
+            end
           end
           # Manual offset commit
           if @enable_auto_commit == "false"
