@@ -247,7 +247,7 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
       else 
         codec_inst = @codec.clone
       end    
-      Thread.new do
+    Thread.new do
       begin
         unless @topics_pattern.nil?
           nooplistener = org.apache.kafka.clients.consumer.internals.NoOpConsumerRebalanceListener.new
@@ -264,16 +264,17 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
               codec_inst.accept(CodecCallbackListener.new(record, self, logstash_queue, @decorate_events, @group_id))
             else 
               codec_instance.decode(record.value.to_s) do |event|
-              decorate(event)
-              if @decorate_events
-                event.set("[@metadata][kafka][topic]", record.topic)
-                event.set("[@metadata][kafka][consumer_group]", @group_id)
-                event.set("[@metadata][kafka][partition]", record.partition)
-                event.set("[@metadata][kafka][offset]", record.offset)
-                event.set("[@metadata][kafka][key]", record.key)
-                event.set("[@metadata][kafka][timestamp]", record.timestamp)
+                decorate(event)
+                if @decorate_events
+                  event.set("[@metadata][kafka][topic]", record.topic)
+                  event.set("[@metadata][kafka][consumer_group]", @group_id)
+                  event.set("[@metadata][kafka][partition]", record.partition)
+                  event.set("[@metadata][kafka][offset]", record.offset)
+                  event.set("[@metadata][kafka][key]", record.key)
+                  event.set("[@metadata][kafka][timestamp]", record.timestamp)
+                end
+                logstash_queue << event
               end
-              logstash_queue << event
             end
           end
           # Manual offset commit
