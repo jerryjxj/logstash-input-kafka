@@ -242,11 +242,11 @@ class LogStash::Inputs::Kafka < LogStash::Inputs::Base
 
   private
   def thread_runner(logstash_queue, consumer)
-      if @codec.kind_of? LogStash::Codecs::Multiline
-        codec_inst = LogStash::Codecs::IdentityMapCodec.new(@codec.clone)
-      else 
-        codec_inst = @codec.clone
-      end    
+    if @codec.kind_of? LogStash::Codecs::Multiline
+      codec_inst = LogStash::Codecs::IdentityMapCodec.new(@codec.clone)
+    else 
+      codec_inst = @codec.clone
+    end    
     Thread.new do
       begin
         unless @topics_pattern.nil?
